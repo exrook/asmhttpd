@@ -3,3 +3,5 @@ CMakeCache.txt
 CMakeFiles/
 *.ninja
 *.cmake
+Makefile
+httpd
