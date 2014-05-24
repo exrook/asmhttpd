@@ -17,41 +17,78 @@ section .text
   global _start
 
 write:
-  pop edi ; save return addr
+  push ebp    ; save ebp
+  mov ebp,esp ; save esp
   
-  pop ebx ; fd
-  pop edx ; msgLength
-  pop ecx ; msg
+  push eax ; save registers
+  push ebx
+  push ecx
+  push edx
+  
+  mov ebx,[ebp+8]  ; fd
+  mov edx,[ebp+12] ; msgLength
+  mov ecx,[ebp+16] ; msg
   
   mov eax,4 ; syscall 4 - write
-  int 80h
+  int 80h   ; syscall
   
-  push edi ; restore return addr
-  ret
+  push edx
+  push ecx
+  push ebx
+  push eax
+  
+  mov esp,ebp      ; restore esp
+  mov ebp,[esp+4]  ; save ret addr to ebp
+  add esp,20       ; clear args+ret addr+old ebp off stack
+  push ebp         ; push ret addr 
+  mov ebp,[esp-16] ; restore old ebp from stack
+  ret              ; return
 print:
   pop edi
   push 1
   push edi
   jmp write
 close:
-  pop edi   ; save return addr
-  pop ebx   ; fd to close
-  mov eax,6 ; write syscall (6)
+  push ebp
+  mov ebp,esp
+  
+  push eax
+  push ebx
+  
+  mov ebx,[ebp+8] ; fd to close
+  
+  mov eax,6 ; close syscall (6)
   int 80h   ; syscall
-  push edi
+  
+  pop ebx
+  pop eax
+  
+  mov esp,ebp     ; restore esp
+  mov ebp,[esp+4] ; save ret addr to ebp
+  add esp,12      ; clear args w/ ebp+ret addr
+  push ebp        ; push ret addr
+  mov ebp,[esp-8] ; restore ebp
   ret
 shutdown:
-  pop edi
-  mov eax,102
-  mov ebx,13
-  mov ecx,esp
-  int 80h
-  pop eax
-  pop eax
-  push edi
+  push ebp    ; save ebp
+  mov ebp,esp ; save esp
+  
+  mov eax,102   ; netcall
+  mov ebx,13    ; subcall 13 - shutdown
+  add esp,8     ; args are on stack 8 bytes back
+  mov ecx,esp   ; fd and mode are on the stack
+  int 80h       ; syscall
+  
+  mov esp,ebp ; restore esp
+  pop ebp     ; restore ebp
+  pop eax     ; save ret address
+  add esp,8   ; clear args
+  push eax    ; restore ret addr
   ret
 open_socket:
-  mov edx,esp ; save stack pointer
+  push ebp    ; save ebp
+  mov ebp,esp ; save stack pointer
+  
   push dword 6 ; (IPPROTO_TCP)
   push dword 1 ; (SOCK_STREAM)
   push dword 2 ; (PF_INET)
@@ -62,7 +99,9 @@ open_socket:
   
   int 80h             ; call kernel
   mov [socket_fd],eax ; save file descriptor
-  mov esp,edx ; restore stack pointer
+  
+  mov esp,ebp ; restore stack pointer
+  pop ebp     ; restore ebp
   ret
 bind:
   mov edi,esp ; save stack pointer
