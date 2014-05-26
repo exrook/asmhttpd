@@ -1,3 +1,4 @@
+
 section .text
 
 %macro write_m 2+
@@ -172,38 +173,96 @@ sendfile:
   push ebp
   mov ebp,[esp-8]
   ret
+
+%macro mmap_m 6
+  push %6
+  push %5
+  push %4
+  push %3
+  push %2
+  push %1
+  call mmap
+%endmacro
+
 mmap:
   push ebp
   mov ebp,esp
   
   push eax
   push ebx
-  push ecx
-  push edx
-  push esi
-  push edi
   
   mov eax,90
-  mov ebx,[ebp+8]
-  mov ecx,[ebp+12]
-  mov edx,[ebp+16]
-  mov esi,[ebp+20]
-  mov edi,[ebp+24]
-  push ebp
-  mov ebp,[ebp+28]
-  pop ebp
+  mov ebx,ebp
+  add ebx,8
   int 80h
   
-  pop edi
-  pop esi
-  pop edx
+  mov [ebp+28],eax
+  
+  pop ebx
+  pop eax
+  
+  mov esp,ebp
+  mov ebp,[esp+4]
+  add esp,8+4*5
+  push ebp
+  mov ebp,[esp-8]
+  ret
+
+%macro fstat_m 2
+  push %2
+  push %1
+  call fstat
+%endmacro
+
+fstat:
+  push ebp
+  mov ebp,esp
+  
+  push eax
+  push ebx
+  push ecx
+  
+  mov eax,108
+  mov ebx,[ebp+8]
+  mov ecx,[ebp+12]
+  int 80h
+  
   pop ecx
   pop ebx
   pop eax
   
   mov esp,ebp
   mov ebp,[esp+4]
-  add esp,8+4*6
+  add esp,8+4*2
+  push ebp
+  mov ebp,[esp-8]
+  ret
+  
+%macro signal_m 2
+  push %2
+  push %1
+  call signal
+%endmacro
+signal:
+  push ebp
+  mov ebp,esp
+  
+  push eax
+  push ebx
+  push ecx
+  
+  mov eax,48
+  mov ebx,[ebp+8]
+  mov ecx,[ebp+12]
+  int 80h
+  
+  pop ecx
+  pop ebx
+  pop eax
+  
+  mov esp,ebp
+  mov ebp,[esp+4]
+  add esp,8+4*0
   push ebp
   mov ebp,[esp-8]
   ret

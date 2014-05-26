@@ -1,15 +1,11 @@
 %include "lib.asm"
 
-section .data
-  endmsg: db 'Stopped asmhttpd',10
-  endmsgLen: equ $-endmsg
-
-  close_conn: db 'Connection Closed',10
-  close_connLen: equ $-close_conn
 section .bss
   socket_fd: resw 1; socket file descriptor
   index:     resw 1; index.html fd
-  
+  mem:       resw 1; Pointer to allocated memory
+  stat_info: resb 100
+    
 section .text
   global _start
 
@@ -94,10 +90,12 @@ accept:
   ret
 respond:
   pop eax
-  write_m eax,"<h1>Hello World!</h1>"
+  write_m eax,"HTTP/1.0 200 OK",10,"Content-Type: text/html",10,10
+  fstat_m esi,stat_info
+  mov ecx,[stat_info+20]
   push 0
   mov ebx,esp
-  push 162
+  push ecx
   push ebx
   push esi
   push eax
@@ -108,16 +106,27 @@ respond:
   jmp exit
 _start:
   write_m 1,"Starting ASM-HTTPD",10
+  mmap_m 0,4096,7,0x22,-1,0
+  pop eax
+  mov [mem],eax
   open_m 0,"index.html",0
   pop esi
   mov [index],esi
+  signal_m 1,quit
+  signal_m 2,quit
+  signal_m 15,quit
   call open_socket
   call bind
 loop:
   call listen
   call accept
   jmp loop
+quit:
   write_m 1,"Stopping ASM-HTTPD",10
+  mov eax,[socket_fd]
+  shutdown_m eax,2
+  close_m eax
+  close_m esi
 exit:
   mov eax,1
   mov ebx,0
