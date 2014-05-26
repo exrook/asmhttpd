@@ -1,90 +1,18 @@
+%include "lib.asm"
+
 section .data
-  startmsg: db 'Starting asmhttpd',10
-  startmsgLen: equ $-startmsg
-  
   endmsg: db 'Stopped asmhttpd',10
   endmsgLen: equ $-endmsg
 
-  response: db '<h1>Hello World!</h1>'
-  responseLen: equ $-response
-  
   close_conn: db 'Connection Closed',10
   close_connLen: equ $-close_conn
 section .bss
   socket_fd: resw 1; socket file descriptor
+  index:     resw 1; index.html fd
   
 section .text
   global _start
 
-write:
-  push ebp    ; save ebp
-  mov ebp,esp ; save esp
-  
-  push eax ; save registers
-  push ebx
-  push ecx
-  push edx
-  
-  mov ebx,[ebp+8]  ; fd
-  mov edx,[ebp+12] ; msgLength
-  mov ecx,[ebp+16] ; msg
-  
-  mov eax,4 ; syscall 4 - write
-  int 80h   ; syscall
-  
-  push edx
-  push ecx
-  push ebx
-  push eax
-  
-  mov esp,ebp      ; restore esp
-  mov ebp,[esp+4]  ; save ret addr to ebp
-  add esp,20       ; clear args+ret addr+old ebp off stack
-  push ebp         ; push ret addr 
-  mov ebp,[esp-16] ; restore old ebp from stack
-  ret              ; return
-print:
-  pop edi
-  push 1
-  push edi
-  jmp write
-close:
-  push ebp
-  mov ebp,esp
-  
-  push eax
-  push ebx
-  
-  mov ebx,[ebp+8] ; fd to close
-  
-  mov eax,6 ; close syscall (6)
-  int 80h   ; syscall
-  
-  pop ebx
-  pop eax
-  
-  mov esp,ebp     ; restore esp
-  mov ebp,[esp+4] ; save ret addr to ebp
-  add esp,12      ; clear args w/ ebp+ret addr
-  push ebp        ; push ret addr
-  mov ebp,[esp-8] ; restore ebp
-  ret
-shutdown:
-  push ebp    ; save ebp
-  mov ebp,esp ; save esp
-  
-  mov eax,102   ; netcall
-  mov ebx,13    ; subcall 13 - shutdown
-  add esp,8     ; args are on stack 8 bytes back
-  mov ecx,esp   ; fd and mode are on the stack
-  int 80h       ; syscall
-  
-  mov esp,ebp ; restore esp
-  pop ebp     ; restore ebp
-  pop eax     ; save ret address
-  add esp,8   ; clear args
-  push eax    ; restore ret addr
-  ret
 open_socket:
   push ebp    ; save ebp
   mov ebp,esp ; save stack pointer
@@ -106,8 +34,8 @@ open_socket:
 bind:
   mov edi,esp ; save stack pointer
   
-  push dword 0     ; push sockaddr onto stack in reverse order
-  push word 0x6022 ; 0.0.0.0:8800
+  push dword 0     ; push sockaddr onto stack in reverse order,0.0.0.0
+  push word 0x901F ; 8080
   push word 2      ; AF_INET
   
   mov ecx,esp ; set ecx to the address of sockaddr
@@ -121,8 +49,13 @@ bind:
   mov ebx,2   ; bind subcall
   mov ecx,esp ; bind arguments are on the stack
   int 80h     ; syscall
+  cmp eax,0
+  jl bind_error
   mov esp,edi ; restore stack pointer
   ret
+bind_error:
+  write_m 1,"Error binding to :8080",10
+  jmp exit
 listen:
   mov edi,esp ; save stack pointer
   
@@ -154,38 +87,37 @@ accept:
   mov eax,2 ; fork process call (2)
   int 80h   ; syscall
   
+  mov ecx,[index]
   test eax,eax ; eax will be zero in child
   jz respond
   push edi ; restore stack pointer
   ret
 respond:
   pop eax
+  write_m eax,"<h1>Hello World!</h1>"
+  push 0
+  mov ebx,esp
+  push 162
+  push ebx
+  push esi
   push eax
-  push 2
-  push eax
-  push response
-  push responseLen
-  push eax
-  call write
-  call shutdown
-  call close
-  push close_conn
-  push close_connLen
-  call print
+  call sendfile
+  shutdown_m eax,2
+  close_m eax
+  write_m 1,"Closed Connection",10
   jmp exit
 _start:
-  push startmsg
-  push startmsgLen
-  call print
+  write_m 1,"Starting ASM-HTTPD",10
+  open_m 0,"index.html",0
+  pop esi
+  mov [index],esi
   call open_socket
   call bind
 loop:
   call listen
   call accept
   jmp loop
-  push endmsg
-  push endmsgLen
-  call print
+  write_m 1,"Stopping ASM-HTTPD",10
 exit:
   mov eax,1
   mov ebx,0
